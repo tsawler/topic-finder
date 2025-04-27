@@ -161,3 +161,9 @@ The application is containerized using Docker for consistent deployment:
 - Integration with other NLP techniques like word embeddings
 - Ability to process phrases and not just individual words
 - User feedback mechanism to improve suggestions over time
+
+## Acknowledgements
+This software uses WordNet® by Princeton University. WordNet® is a registered trademark of Princeton University.
+
+## License
+MIT license.
