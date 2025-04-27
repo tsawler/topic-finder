@@ -63,10 +63,10 @@ except LookupError:
 WUP_SIMILARITY_THRESHOLD = 0.35
 # Allow more flexibility in hypernym depth
 MIN_MEANINGFUL_HYPERNYM_DEPTH = 2
-
-# New constants based on analysis
-MIN_VALID_WORDS_FOR_TOPIC = 2 # Minimum number of words with noun synsets to attempt finding a common topic
-MIN_LENIENT_HYPERNYM_DEPTH = 1 # Lower depth threshold for hypernyms in fallback ranking
+# Minimum number of words with noun synsets to attempt finding a common topic
+MIN_VALID_WORDS_FOR_TOPIC = 2 
+# Lower depth threshold for hypernyms in fallback ranking
+MIN_LENIENT_HYPERNYM_DEPTH = 1 
 
 # Ranking score constants (used in compute_rank_score)
 SHARED_COUNT_WEIGHT = 100
@@ -306,7 +306,7 @@ def find_top_topic_words(topic_words, top_n=3, context_pos=None):
     if len(valid_words) < MIN_VALID_WORDS_FOR_TOPIC:
         return [], {"reason": f"Not enough words with synsets found (found {len(valid_words)})"}
 
-    # --- Improved Word Sense Disambiguation with multiple similarity methods ---
+    # --- Word Sense Disambiguation with multiple similarity methods ---
     # For each word, find the synset with the highest weighted similarity to other words
     synset_scores = defaultdict(float)
     synset_to_word_map = {}
@@ -500,7 +500,7 @@ def find_top_topic_words(topic_words, top_n=3, context_pos=None):
     if not meaningful_candidates:
         return [], {"reason": "No meaningful common ancestors found that meet the criteria"}
 
-    # --- Improved Ranking with POS sensitivity ---
+    # --- Ranking with POS sensitivity ---
     def compute_rank_score(candidate):
         # Base score from number of shared synsets (most important)
         shared_score = candidate['shared_count'] * SHARED_COUNT_WEIGHT
@@ -747,7 +747,7 @@ def categorize_word():
     
     return jsonify(response), 200
 
-# --- New Route: Context-Based Analysis ---
+# --- Route: Context-Based Analysis ---
 @app.route('/analyze-context', methods=['POST'])
 def analyze_context():
     """
