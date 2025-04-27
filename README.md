@@ -128,9 +128,10 @@ Finds common topics among a set of words.
 ```json
 {
   "words": ["apple", "banana", "orange", "grape"],
-  "context_pos": "n"  // Optional: preferred part of speech (n, v, a, or r)
+  "context_pos": "n"  
 }
 ```
+`context_pos` is optional; it's the preferred part of speech (n, v, a, or r)
 
 **Response:**
 ```json
@@ -149,9 +150,10 @@ Finds which topic from a list best fits a single word.
 {
   "word": "laptop",
   "topics": ["furniture", "electronics", "food", "clothing"],
-  "context_pos": "n"  // Optional: preferred part of speech
+  "context_pos": "n"  
 }
 ```
+`context_pos` is optional; it's the preferred part of speech (n, v, a, or r)
 
 **Response:**
 ```json
