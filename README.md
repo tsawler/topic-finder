@@ -162,10 +162,10 @@ Or, if no match is found:
 2. Build and start the Docker container:
    ```bash
    # Using Taskfile (recommended)
-   task up_dev
+   task up_build
    
    # Or using Docker Compose directly
-   docker compose up -d
+   docker compose up -d --build
    ```
 
 #### Manual Installation
