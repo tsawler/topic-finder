@@ -4,21 +4,31 @@ from nltk.stem import WordNetLemmatizer
 from collections import defaultdict
 from flask import Flask, request, jsonify, render_template
 import logging
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# --- NLTK Data Configuration ---
+# Check if NLTK_DATA environment variable is set and use it
+nltk_data_path = os.environ.get('NLTK_DATA')
+if nltk_data_path:
+    logger.info(f"Using NLTK data path from environment: {nltk_data_path}")
+    nltk.data.path.insert(0, nltk_data_path)
+
 # --- NLTK Data Download ---
 try:
     nltk.data.find('corpora/wordnet')
     nltk.data.find('tokenizers/punkt')  # For lemmatization
-except LookupError:
-    logger.info("NLTK data not found. Downloading required resources...")
+    nltk.data.find('corpora/omw-1.4')   # Open Multilingual WordNet
+    logger.info("All required NLTK resources found.")
+except LookupError as e:
+    logger.info(f"NLTK data not found: {e}. Downloading required resources...")
     try:
-        nltk.download('wordnet')
-        nltk.download('omw-1.4')
-        nltk.download('punkt')  # For lemmatization
+        nltk.download('wordnet', download_dir=nltk_data_path)
+        nltk.download('omw-1.4', download_dir=nltk_data_path)
+        nltk.download('punkt', download_dir=nltk_data_path)  # For lemmatization
         logger.info("Download complete.")
     except Exception as e:
         logger.error(f"Error downloading NLTK data: {e}")
@@ -33,35 +43,7 @@ WUP_SIMILARITY_THRESHOLD = 0.35
 # Allow more flexibility in hypernym depth
 MIN_MEANINGFUL_HYPERNYM_DEPTH = 2
 
-# Common food-related terms and categories
-FOOD_TERMS = ['food', 'nutrient', 'aliment', 'nourishment', 'sustenance', 'edible', 'comestible', 'produce']
-KNOWN_FOOD_ITEMS = ['fruit', 'vegetable', 'meat', 'grain', 'dairy', 'bread', 'cereal', 'soup', 'juice']
-
 # --- Helper Functions ---
-def check_in_food_taxonomy(synset):
-    """
-    Check if a synset falls under the food taxonomy in WordNet.
-    
-    Args:
-        synset: The WordNet synset to check
-        
-    Returns:
-        bool: True if the synset is food-related, False otherwise
-    """
-    # Quick initial check using lemma names
-    for lemma in synset.lemmas():
-        if lemma.name().lower() in FOOD_TERMS:
-            return True
-    
-    # Check hypernym paths
-    for hypernym_path in synset.hypernym_paths():
-        for hypernym in hypernym_path:
-            for lemma in hypernym.lemmas():
-                if lemma.name().lower() in FOOD_TERMS:
-                    return True
-    
-    return False
-
 def get_synsets_with_fallbacks(word, pos=None):
     """
     Get WordNet synsets for a word with fallbacks to alternate forms.
@@ -294,7 +276,7 @@ def find_top_topic_words(topic_words, top_n=3, min_synsets_for_common=2):
         # Add depth score (moderate importance)
         depth_score = candidate['depth'] * 10
         
-        # Adjust for path length (least important, shorter is better)
+        # Adjust for path length (least importance, shorter is better)
         # Convert to a positive factor (smaller path length = higher score)
         path_score = max(0, 50 - candidate['min_path_length'] * 5)
         
@@ -341,9 +323,6 @@ def find_best_fitting_topic(single_word, topic_list):
     single_word = single_word.lower().strip()
     lemmatized_word = lemmatizer.lemmatize(single_word, pos='n')
     
-    # Check if this is a known food item
-    is_known_food = lemmatized_word in KNOWN_FOOD_ITEMS
-    
     # Get synsets for the input word with fallbacks
     word_synsets_dict = get_synsets_with_fallbacks(lemmatized_word)
     
@@ -354,9 +333,6 @@ def find_best_fitting_topic(single_word, topic_list):
     
     if not single_word_synsets:
         return None, {"reason": f"Word '{single_word}' not found in WordNet"}
-    
-    # Track if any input word synset is food-related
-    word_is_food_related = any(check_in_food_taxonomy(syn) for syn in word_synsets_dict['n'])
     
     best_topic = None
     highest_similarity = -1.0
@@ -371,17 +347,8 @@ def find_best_fitting_topic(single_word, topic_list):
         topic_clean = topic_word.lower().strip()
         if not topic_clean:
             continue
-            
-        # Check if this is a food-related topic
-        is_food_topic = topic_clean in FOOD_TERMS
         
-        # Adjust threshold for food categories
-        if is_food_topic and (word_is_food_related or is_known_food):
-            # Lower threshold for food categories when comparing with food items
-            similarity_threshold = WUP_SIMILARITY_THRESHOLD * 0.8
-            logger.debug(f"Using lower threshold ({similarity_threshold}) for food topic: {topic_clean}")
-        else:
-            similarity_threshold = WUP_SIMILARITY_THRESHOLD
+        similarity_threshold = WUP_SIMILARITY_THRESHOLD
         
         # Get topic synsets with fallbacks
         if topic_clean in processed_topics:
@@ -404,19 +371,6 @@ def find_best_fitting_topic(single_word, topic_list):
         current_pos_match = None
         current_word_pos = None
         
-        # Track food-related match bonus
-        food_match_bonus = 0.0
-        
-        # Check food taxonomy match if applicable
-        if is_food_topic and word_synsets_dict['n']:
-            # Check if any of the word's noun synsets fall under food taxonomy
-            for word_syn in word_synsets_dict['n']:
-                if check_in_food_taxonomy(word_syn):
-                    # Apply a bonus for food-related matches
-                    food_match_bonus = 0.1
-                    logger.debug(f"Applied food match bonus for '{single_word}' and '{topic_clean}'")
-                    break
-        
         # Compare synsets with same POS first (more accurate)
         for pos_key, word_pos_synsets in word_synsets_dict.items():
             topic_pos_synsets = topic_synsets_dict.get(pos_key, [])
@@ -427,8 +381,7 @@ def find_best_fitting_topic(single_word, topic_list):
                     similarity = ws.wup_similarity(ts)
                     
                     if similarity is not None:
-                        # Apply food match bonus if applicable
-                        adjusted_similarity = similarity + food_match_bonus
+                        adjusted_similarity = similarity
                         
                         if adjusted_similarity > current_max_similarity:
                             current_max_similarity = adjusted_similarity
@@ -447,18 +400,12 @@ def find_best_fitting_topic(single_word, topic_list):
                                 
                                 if similarity is not None:
                                     # Penalize cross-POS matches slightly
-                                    adjusted_similarity = (similarity * 0.8) + food_match_bonus
+                                    adjusted_similarity = similarity * 0.8
                                     
                                     if adjusted_similarity > current_max_similarity:
                                         current_max_similarity = adjusted_similarity
                                         current_pos_match = "cross"
                                         current_word_pos = f"{word_pos_key}->{topic_pos_key}"
-        
-        # Special case for known food items
-        if is_known_food and is_food_topic and current_max_similarity > 0:
-            # Further boost known food items matching food topics
-            current_max_similarity += 0.1
-            logger.debug(f"Applied known food item boost for '{single_word}' and '{topic_clean}'")
         
         # Update best topic if this one is more similar
         if current_max_similarity > highest_similarity:
@@ -471,24 +418,13 @@ def find_best_fitting_topic(single_word, topic_list):
             debug_info = {
                 "similarity_score": highest_similarity,
                 "pos_match_type": best_topic_pos,
-                "word_pos": word_pos,
-                "food_related": word_is_food_related or is_known_food
+                "word_pos": word_pos
             }
     
     # Return the best topic if significant similarity found
     if highest_similarity >= WUP_SIMILARITY_THRESHOLD:
         return best_topic, debug_info
     else:
-        # Special case: If the word is a known food item and "food" is among topics, return it
-        for topic in topic_list:
-            if topic.lower() in FOOD_TERMS and is_known_food:
-                logger.debug(f"Forced match of known food item '{single_word}' to '{topic}'")
-                return topic, {
-                    "reason": "Matched based on known food item list",
-                    "forced_match": True,
-                    "highest_score": highest_similarity
-                }
-        
         return None, {"reason": "No topic found with significant similarity", "highest_score": highest_similarity}
 
 # --- Flask Application ---
