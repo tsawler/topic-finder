@@ -20,27 +20,28 @@ except LookupError:
         print(f"Error downloading NLTK data: {e}")
         print("Please ensure you have an internet connection and try again.")
 
-# --- Topic Finding Function (with WSD and revised ranking) ---
-def find_meaningful_topic_word_improved(topic_words):
+# --- Topic Finding Function (modified to return top 3 topics) ---
+def find_top_topic_words(topic_words, top_n=3):
     """
-    Finds a single meaningful descriptive word for a list of topic words
+    Finds the top n meaningful descriptive words for a list of topic words
     by performing Word Sense Disambiguation (WSD) using Wu-Palmer similarity
     and then identifying common, relatively specific hypernyms using WordNet.
 
     Args:
         topic_words (list): A list of strings, where each string is a word
                             from the topic.
+        top_n (int): Number of top topic words to return (default: 3)
 
     Returns:
-        str or None: The most representative common hypernym found based on WSD
-                     and ranking, or the original word if only one is provided,
-                     or None if no meaningful common hypernyms are identified.
+        list: A list of the top n most representative common hypernyms found,
+              or the original word if only one is provided,
+              or empty list if no meaningful common hypernyms are identified.
     """
     if not topic_words:
-        return None
+        return []
     if len(topic_words) == 1:
         # If only one word, return the word itself.
-        return topic_words[0]
+        return [topic_words[0]]
 
     # --- Step 1: Word Sense Disambiguation (WSD) ---
     # Select the most likely synset for each word based on its similarity to the synsets of other words.
@@ -61,7 +62,7 @@ def find_meaningful_topic_word_improved(topic_words):
         # Need at least two words with noun synsets to find common hypernyms based on similarity
         # If we have only one word, the initial check handles it. If multiple words but only one
         # has noun synsets, we can't perform pairwise WSD.
-        return None
+        return []
 
     # Calculate scores for each synset of each valid word based on Wu-Palmer similarity
     # A synset's score is the sum of its maximum similarities to any synset of each other word.
@@ -109,7 +110,7 @@ def find_meaningful_topic_word_improved(topic_words):
 
     if len(selected_synsets_list) < 2:
         # Need at least two selected senses to find a common ancestor
-        return None
+        return []
 
     # --- Step 2: Find Common Hypernyms of Selected Synsets ---
     # Now, we only consider hypernyms that are ancestors of the *selected* synsets.
@@ -165,8 +166,8 @@ def find_meaningful_topic_word_improved(topic_words):
 
 
     if not meaningful_candidates:
-        # Fallback: if no meaningful common ancestors found for selected synsets, return None
-        return None
+        # Fallback: if no meaningful common ancestors found for selected synsets, return empty list
+        return []
 
     # --- Ranking ---
     # Rank candidates:
@@ -179,12 +180,13 @@ def find_meaningful_topic_word_improved(topic_words):
         key=lambda x: (-x['shared_count'], -x['depth'], x['min_path_length']) # Use negative for descending sort
     )
 
-    # The best candidate is the first one after sorting
-    best_synset_data = sorted_candidates[0]
-    best_synset = best_synset_data['synset']
-
-    # Return the name (lemma) of the best synset, replacing underscores with spaces
-    return best_synset.lemmas()[0].name().replace('_', ' ')
+    # Get the top n candidates or all if less than n are available
+    top_candidates = sorted_candidates[:top_n]
+    
+    # Extract the name (lemma) of each top synset, replacing underscores with spaces
+    top_words = [candidate['synset'].lemmas()[0].name().replace('_', ' ') for candidate in top_candidates]
+    
+    return top_words
 
 # --- Flask Application ---
 app = Flask(__name__)
@@ -199,9 +201,9 @@ def index():
 @app.route('/find-topic', methods=['POST'])
 def find_topic():
     """
-    POST route to find a meaningful topic word from a list of words.
+    POST route to find top 3 meaningful topic words from a list of words.
     Expects a JSON payload like: {"words": ["apple", "banana", "orange"]}
-    Returns a JSON response like: {"topic_word": "fruit"} or {"topic_word": null}
+    Returns a JSON response like: {"topic_words": ["fruit", "produce", "food"]} or {"topic_words": []}
     """
     if not request.is_json:
         return jsonify({"error": "Request must be JSON"}), 415 # Unsupported Media Type
@@ -217,10 +219,10 @@ def find_topic():
     if not all(isinstance(word, str) for word in topic_words):
          return jsonify({"error": "'words' list must contain only strings"}), 400 # Bad Request
 
-    # Use the improved function
-    suggested_word = find_meaningful_topic_word_improved(topic_words)
+    # Use the updated function to get top 3 topics
+    suggested_words = find_top_topic_words(topic_words, top_n=3)
 
-    return jsonify({"topic_word": suggested_word})
+    return jsonify({"topic_words": suggested_words})
 
 if __name__ == '__main__':
     # Run the Flask app
