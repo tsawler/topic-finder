@@ -1,169 +1,274 @@
-# Topic Finder
+# Topic Finder API
 
-A web application that helps identify common topics or themes from a set of related words using natural language processing techniques.
+A Flask-based web application that uses natural language processing (NLP) techniques to analyze words and their relationships. The application offers two main features:
+
+1. **Find Common Topics** - Identify the most relevant common topics or categories for a group of words.
+2. **Categorize a Single Word** - Determine which topic from a provided list best fits a single input word.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Technical Details](#technical-details)
+  - [Key Concepts](#key-concepts)
+  - [Architecture](#architecture)
+- [API Reference](#api-reference)
+  - [Find Common Topics](#find-common-topics)
+  - [Categorize a Single Word](#categorize-a-single-word)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Running the Application](#running-the-application)
+- [Development](#development)
+- [How It Works](#how-it-works)
+  - [Find Common Topics Process](#find-common-topics-process)
+  - [Word Categorization Process](#word-categorization-process)
+- [Attribution](#attribution)
+- [License](#license)
 
 ## Overview
 
-Topic Finder uses semantic analysis to find a representative word that best captures the common theme among a set of words. For example, given the words "apple", "banana", and "orange", the application would suggest "fruit" as the common topic.
+This application leverages the power of Princeton University's WordNet database to analyze semantic relationships between words. Through a user-friendly web interface or API endpoints, users can:
 
-This tool is particularly useful for:
-- Content organization and tagging
-- SEO keyword analysis
-- Document categorization
-- Educational applications in linguistics
+1. Find common topics or categories that best describe a group of related words
+2. Determine which topic from a list best fits a single input word
 
-## How It Works
-
-### Technical Flow
-
-1. **User Input**: Users enter a comma-separated list of words through a web interface
-2. **Word Processing**: The application analyzes the semantic relationships between these words using WordNet (a lexical database)
-3. **Topic Analysis**: The system identifies a word that represents the common theme or category
-4. **Result Display**: The suggested topic word is presented to the user
-
-### Core NLP Concepts
-
-#### WordNet
-WordNet is a large lexical database of English words. It groups nouns, verbs, adjectives, and adverbs into sets of cognitive synonyms (synsets), each expressing a distinct concept. WordNet includes various semantic relationships between these concepts, such as:
-
-- **Synonyms**: Words with similar meanings
-- **Hypernyms**: More general terms (e.g., "fruit" is a hypernym of "apple")
-- **Hyponyms**: More specific terms (e.g., "apple" is a hyponym of "fruit")
-
-#### Word Sense Disambiguation (WSD)
-Words often have multiple meanings (senses). For example, "bank" can refer to a financial institution or the side of a river. WSD is the process of identifying which sense of a word is being used in a particular context.
-
-In this application, WSD is performed using Wu-Palmer similarity, which:
-1. Compares each possible meaning of each word with possible meanings of other words
-2. Calculates similarity scores based on their positions in the WordNet hierarchy
-3. Selects the sense (meaning) of each word that has the highest average similarity to the meanings of other words
-
-#### Hypernym Finding
-After identifying the most likely sense of each word, the application:
-1. Traces up the WordNet hierarchy to find common "ancestor" terms (hypernyms)
-2. Ranks these common hypernyms based on:
-   - How many of the input words share this hypernym
-   - How specific the hypernym is (deeper terms in the hierarchy are more specific)
-   - How directly related the hypernym is to the original words
-
-The system then selects the most appropriate common term based on this ranking to suggest as the topic word.
-
-## Installation
-
-### Prerequisites
-- Docker and Docker Compose
-- Git
-
-### Setup
-
-1. Clone the repository:
-   ```
-   git clone [repository-url]
-   cd topic-finder
-   ```
-
-2. Start the application in development mode:
-   ```
-   task up
-   ```
-   or
-   ```
-   docker compose up -d
-   ```
-
-3. For production deployment:
-   ```
-   task up_prod
-   ```
-   or
-   ```
-   docker compose -f docker-compose-prod.yml up -d
-   ```
-
-4. Access the application in your browser:
-   ```
-   http://localhost:4001
-   ```
-
-## Usage
-
-1. Enter a list of related words in the text area, separated by commas (e.g., "apple, banana, orange")
-2. Click the "Find Topic" button
-3. View the suggested topic word in the results section
-
-## Project Structure
-
-- `app.py`: Main Flask application with the topic-finding algorithm
-- `index.html`: Web interface for the application
-- `requirements.txt`: Python dependencies
-- `docker-compose.yml`: Configuration for development deployment
-- `docker-compose-prod.yml`: Configuration for production deployment
-- `Taskfile.yml`: Task runner configuration for common commands
+These capabilities are particularly useful for:
+- Content tagging and categorization
+- Search optimization
+- Text analysis
+- Knowledge organization
 
 ## Technical Details
 
-### NLTK and WordNet
+### Key Concepts
 
-The application uses the Natural Language Toolkit (NLTK), specifically its WordNet integration, to analyze word relationships. The first time the application runs, it automatically downloads the required WordNet data.
+For those unfamiliar with natural language processing (NLP), here are the key concepts used in this application:
 
-### The Algorithm
+- **NLP (Natural Language Processing)**: A field of computer science focused on enabling computers to understand, interpret, and manipulate human language.
 
-The core algorithm in `find_meaningful_topic_word_improved()` performs these steps:
+- **WordNet**: A large lexical database of English words. Nouns, verbs, adjectives, and adverbs are grouped into sets of cognitive synonyms (synsets), each expressing a distinct concept.
 
-1. **Word Validation**: Checks if the provided words exist in WordNet as nouns
-2. **Word Sense Disambiguation**:
-   - For each word, retrieves all possible noun meanings from WordNet
-   - Calculates similarity scores between all word senses using Wu-Palmer similarity
-   - Selects the most likely meaning of each word based on highest similarity to other words
-3. **Common Hypernym Identification**:
-   - Maps the selected word senses to their positions in the WordNet hierarchy
-   - Identifies common ancestor terms (hypernyms) shared by multiple words
-   - Filters out overly general terms (like "entity" or "object")
-4. **Ranking and Selection**:
-   - Ranks candidate hypernyms based on how many words they represent, their specificity, and their proximity to the original words
-   - Returns the most appropriate common term as the suggested topic
+- **Synset**: A set of synonyms that share a common meaning.
 
-## Docker Deployment
+- **Hypernym**: A word with a broader meaning that includes more specific words. For example, "fruit" is a hypernym of "apple."
 
-The application is containerized using Docker for consistent deployment:
+- **Wu-Palmer Similarity**: A method to calculate how similar two words are, based on the depth of their synsets in the WordNet hierarchy and their Least Common Subsumer (LCS).
 
-- **Development Mode**: Uses Flask's built-in development server for quick testing and debugging
-- **Production Mode**: Uses Gunicorn as the WSGI server for improved performance and reliability
+- **Word Sense Disambiguation (WSD)**: The process of identifying which sense of a word is being used in a particular context.
+
+### Architecture
+
+The application consists of:
+
+1. **Flask Web Application**: Serves both the HTML frontend and API endpoints.
+2. **NLTK (Natural Language Toolkit)**: Provides the NLP functionality, particularly access to WordNet.
+3. **Docker Container**: Ensures consistent deployment across environments.
 
 ## API Reference
 
-### Endpoint: `/find-topic`
-- **Method**: POST
-- **Content-Type**: application/json
-- **Request Body**:
-  ```json
-  {
-    "words": ["word1", "word2", "word3"]
-  }
-  ```
-- **Response**:
-  ```json
-  {
-    "topic_word": "suggested_topic"
-  }
-  ```
+### Find Common Topics
 
-## Limitations
+Finds the most meaningful common topics for a group of words.
 
-- Works best with concrete nouns that have clear hierarchical relationships
-- Limited to words available in the WordNet database
-- Performance depends on the specificity and relatedness of the input words
-- Currently supports English language only
+**Endpoint:** `POST /find-topic`
 
-## Future Enhancements
+**Request Format:**
+```json
+{
+  "words": ["word1", "word2", "word3", ...]
+}
+```
 
-- Support for additional languages
-- Integration with other NLP techniques like word embeddings
-- Ability to process phrases and not just individual words
-- User feedback mechanism to improve suggestions over time
+**Response Format:**
+```json
+{
+  "topic_words": ["topic1", "topic2", "topic3", ...]
+}
+```
 
-## Acknowledgements
-This software uses WordNet® by Princeton University. WordNet® is a registered trademark of Princeton University.
+**Example:**
+```json
+// Request
+{
+  "words": ["apple", "banana", "orange"]
+}
+
+// Response
+{
+  "topic_words": ["fruit", "produce", "food"]
+}
+```
+
+### Categorize a Single Word
+
+Identifies which topic from a provided list best fits a single word.
+
+**Endpoint:** `POST /categorize-word`
+
+**Request Format:**
+```json
+{
+  "word": "word_to_categorize",
+  "topics": ["topic1", "topic2", "topic3", ...]
+}
+```
+
+**Response Format:**
+```json
+{
+  "best_topic": "matching_topic"
+}
+```
+
+Or, if no match is found:
+```json
+{
+  "best_topic": null,
+  "message": "Could not find a significantly similar topic."
+}
+```
+
+**Example:**
+```json
+// Request
+{
+  "word": "grape",
+  "topics": ["fruit", "vehicle", "sport"]
+}
+
+// Response
+{
+  "best_topic": "fruit"
+}
+```
+
+## Getting Started
+
+### Prerequisites
+
+- Docker (recommended) or Python 3.8+
+- [Task](https://taskfile.dev/) (optional but recommended; alternative to Make)
+
+### Installation
+
+#### Using Docker (Recommended)
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/topic-finder.git
+   cd topic-finder
+   ```
+
+2. Build and start the Docker container:
+   ```bash
+   # Using Taskfile (recommended)
+   task up_dev
+   
+   # Or using Docker Compose directly
+   docker compose up -d
+   ```
+
+#### Manual Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/topic-finder.git
+   cd topic-finder
+   ```
+
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. Download WordNet data:
+   ```bash
+   python -c "import nltk; nltk.download('wordnet'); nltk.download('omw-1.4')"
+   ```
+
+4. Run the Flask application:
+   ```bash
+   flask run
+   ```
+
+### Running the Application
+
+After starting the application:
+
+1. Open your browser and navigate to `http://localhost:4001`
+2. Use the web interface to interact with the application, or
+3. Make API requests to `http://localhost:4001/find-topic` or `http://localhost:4001/categorize-word`
+
+## Development
+
+The application uses two Docker Compose files:
+
+1. `docker-compose.yml` - For development with hot-reloading
+2. `docker-compose-prod.yml` - For production with Gunicorn WSGI server
+
+You can use the included Taskfile for common operations:
+
+```bash
+# Start development environment
+task up_dev
+
+# Rebuild and start development environment
+task up_build
+
+# Stop the application
+task down
+
+# Start production environment
+task up_prod
+
+# Rebuild and start production environment
+task up_build_prod
+```
+
+## How It Works
+
+### Find Common Topics Process
+
+When you submit a list of words to find common topics, the application:
+
+1. **Synset Identification**: Finds all possible meanings (synsets) for each word in WordNet.
+2. **Word Sense Disambiguation (WSD)**: Determines the most likely sense of each word based on Wu-Palmer similarity to other words in the list.
+3. **Common Hypernym Detection**: Identifies common broader terms (hypernyms) that encompass the selected word senses.
+4. **Ranking and Selection**: Ranks these hypernyms based on specificity and relevance, then returns the top 3.
+
+#### Example
+
+Input: ["apple", "banana", "orange"]
+
+1. The system identifies that all three words have senses related to fruit.
+2. It finds common hypernyms like "fruit", "produce", and "food".
+3. It ranks these hypernyms based on how specific they are and how strongly they relate to the input words.
+4. The final result would be these ranked hypernyms: ["fruit", "produce", "food"].
+
+### Word Categorization Process
+
+When categorizing a single word against a list of topics:
+
+1. **Synset Identification**: Finds all possible meanings for the input word and topic words.
+2. **Similarity Calculation**: Calculates Wu-Palmer similarity between the input word and each topic word.
+3. **Best Match Selection**: Selects the topic with the highest similarity score that exceeds a minimum threshold.
+
+#### Example
+
+Input word: "grape"
+Topic list: ["fruit", "vehicle", "sport"]
+
+1. The system identifies synsets for "grape" and for each topic word.
+2. It calculates similarities: grape-fruit (high), grape-vehicle (low), grape-sport (low).
+3. Since "fruit" has the highest similarity score above the threshold, it's selected as the best topic.
+
+## Attribution
+
+This application uses **WordNet®**, a large lexical database of English developed at Princeton University under the direction of Professor George A. Miller. WordNet® is a registered trademark of Princeton University.
+
+**Citation:**
+- Princeton University "About WordNet." [WordNet](https://wordnet.princeton.edu/). Princeton University. 2010.
 
 ## License
-MIT license.
+
+This project is licensed under the MIT License - see below for details:

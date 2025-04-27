@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Topic Finder</title>
+    <title>Topic Finder and Categorizer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Optional: Add custom styles here if needed */
@@ -12,9 +12,10 @@
         }
     </style>
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4 space-y-8">
+
     <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-        <h1 class="text-2xl font-bold mb-6 text-center">Find Your Topics</h1>
+        <h1 class="text-2xl font-bold mb-6 text-center">Find Common Topics for Words</h1>
 
         <form id="topicForm" class="space-y-4">
             <div>
@@ -27,10 +28,9 @@
         </form>
 
         <div id="result" class="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-md hidden">
-            <h2 class="text-lg font-semibold text-gray-800 mb-2">Suggested Topics:</h2>
+            <h2 class="text-lg font-semibold text-gray-800 mb-2">Suggested Common Topics:</h2>
             <ol id="topicList" class="list-decimal pl-5 space-y-1">
-                <!-- Topics will be added here dynamically -->
-            </ol>
+                </ol>
         </div>
 
         <div id="error" class="mt-6 p-4 bg-red-50 border border-red-200 rounded-md text-red-700 hidden">
@@ -39,7 +39,38 @@
         </div>
     </div>
 
+    <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+        <h1 class="text-2xl font-bold mb-6 text-center">Categorize a Single Word</h1>
+
+        <form id="categorizeForm" class="space-y-4">
+            <div>
+                <label for="singleWord" class="block text-sm font-medium text-gray-700 mb-2">Enter a single word:</label>
+                <input type="text" id="singleWord" name="singleWord" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 mt-1 block w-full rounded-md border-gray-300 p-2 border" placeholder="e.g., grape" required>
+            </div>
+             <div>
+                <label for="topicWords" class="block text-sm font-medium text-gray-700 mb-2">Enter possible topics (comma-separated):</label>
+                <textarea id="topicWords" name="topicWords" rows="3" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 mt-1 block w-full rounded-md border-gray-300 p-2 border" placeholder="e.g., fruit, vehicle, sport, animal" required></textarea>
+            </div>
+            <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                Categorize Word
+            </button>
+        </form>
+
+        <div id="categorizeResult" class="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-md hidden">
+            <h2 class="text-lg font-semibold text-gray-800 mb-2">Best Fitting Topic:</h2>
+            <p id="categorizedTopic" class="text-green-700 font-medium"></p>
+             <p id="noCategorizedTopic" class="text-gray-500 hidden">Could not find a significantly similar topic from the list.</p>
+        </div>
+
+         <div id="categorizeError" class="mt-6 p-4 bg-red-50 border border-red-200 rounded-md text-red-700 hidden">
+            <h2 class="text-lg font-semibold mb-2">Error:</h2>
+            <p id="categorizeErrorMessage"></p>
+        </div>
+    </div>
+
+
     <script>
+        // --- Script for Form 1 (Find Common Topics) ---
         document.getElementById('topicForm').addEventListener('submit', async function(event) {
             event.preventDefault(); // Prevent default form submission
 
@@ -49,7 +80,7 @@
             const errorDiv = document.getElementById('error');
             const errorMessagePara = document.getElementById('errorMessage');
 
-            // Hide previous results/errors
+            // Hide previous results/errors for THIS form
             resultDiv.classList.add('hidden');
             errorDiv.classList.add('hidden');
             topicList.innerHTML = ''; // Clear previous topics
@@ -109,6 +140,87 @@
                 errorDiv.classList.remove('hidden');
             }
         });
+
+        // --- Script for Form 2 (Categorize Single Word) ---
+         document.getElementById('categorizeForm').addEventListener('submit', async function(event) {
+            event.preventDefault(); // Prevent default form submission
+
+            const singleWordInput = document.getElementById('singleWord');
+            const topicWordsInput = document.getElementById('topicWords');
+            const categorizeResultDiv = document.getElementById('categorizeResult');
+            const categorizedTopicPara = document.getElementById('categorizedTopic');
+            const noCategorizedTopicPara = document.getElementById('noCategorizedTopic');
+            const categorizeErrorDiv = document.getElementById('categorizeError');
+            const categorizeErrorMessagePara = document.getElementById('categorizeErrorMessage');
+
+            // Hide previous results/errors for THIS form
+            categorizeResultDiv.classList.add('hidden');
+            categorizeErrorDiv.classList.add('hidden');
+            categorizedTopicPara.textContent = ''; // Clear previous result
+            noCategorizedTopicPara.classList.add('hidden');
+            categorizeErrorMessagePara.textContent = '';
+
+            const singleWord = singleWordInput.value.trim();
+            const topicWords = topicWordsInput.value.split(',')
+                                                 .map(word => word.trim())
+                                                 .filter(word => word !== ''); // Clean and filter empty topics
+
+            if (!singleWord) {
+                 categorizeErrorMessagePara.textContent = "Please enter a single word.";
+                 categorizeErrorDiv.classList.remove('hidden');
+                 return;
+            }
+
+            if (topicWords.length === 0) {
+                 categorizeErrorMessagePara.textContent = "Please enter at least one topic word.";
+                 categorizeErrorDiv.classList.remove('hidden');
+                 return;
+            }
+
+
+            try {
+                // Send POST request to the new Flask backend route
+                const response = await fetch('/categorize-word', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ word: singleWord, topics: topicWords }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Display the result
+                    categorizeResultDiv.classList.remove('hidden');
+                    if (data.best_topic) {
+                        categorizedTopicPara.textContent = data.best_topic;
+                        categorizedTopicPara.classList.remove('hidden');
+                        noCategorizedTopicPara.classList.add('hidden');
+                    } else {
+                        // No significant match found
+                        categorizedTopicPara.classList.add('hidden');
+                        noCategorizedTopicPara.classList.remove('hidden');
+                         // Optionally display the message if provided by the server
+                         if(data.message) {
+                             noCategorizedTopicPara.textContent = data.message;
+                         } else {
+                             noCategorizedTopicPara.textContent = "Could not find a significantly similar topic from the list.";
+                         }
+                    }
+                } else {
+                    // Handle server-side errors
+                    categorizeErrorMessagePara.textContent = data.error || `Server returned status: ${response.status}`;
+                    categorizeErrorDiv.classList.remove('hidden');
+                }
+
+            } catch (error) {
+                // Handle network errors
+                categorizeErrorMessagePara.textContent = `Network error: ${error.message}`;
+                categorizeErrorDiv.classList.remove('hidden');
+            }
+        });
+
     </script>
 </body>
 </html>

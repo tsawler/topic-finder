@@ -20,7 +20,8 @@ except LookupError:
         print(f"Error downloading NLTK data: {e}")
         print("Please ensure you have an internet connection and try again.")
 
-# --- Topic Finding Function (modified to return top 3 topics) ---
+# --- Topic Finding Function (original - finds common topic for a list of words) ---
+# This function remains as it was.
 def find_top_topic_words(topic_words, top_n=3):
     """
     Finds the top n meaningful descriptive words for a list of topic words
@@ -182,11 +183,90 @@ def find_top_topic_words(topic_words, top_n=3):
 
     # Get the top n candidates or all if less than n are available
     top_candidates = sorted_candidates[:top_n]
-    
+
     # Extract the name (lemma) of each top synset, replacing underscores with spaces
     top_words = [candidate['synset'].lemmas()[0].name().replace('_', ' ') for candidate in top_candidates]
-    
+
     return top_words
+
+# --- New Function: Find Best Fitting Topic for a Single Word ---
+def find_best_fitting_topic(single_word, topic_list):
+    """
+    Finds which word in a list of topics is most semantically similar
+    to a single input word using WordNet Wu-Palmer similarity.
+
+    Args:
+        single_word (str): The word to categorize.
+        topic_list (list): A list of topic words (strings).
+
+    Returns:
+        str or None: The topic word from the list that best fits the single word,
+                     or None if no meaningful comparison could be made or
+                     no topic word was found to be significantly similar.
+    """
+    if not single_word or not topic_list:
+        return None
+
+    # Get noun synsets for the single word
+    # Consider both noun and adjective senses might be relevant for categorization
+    single_word_synsets = wordnet.synsets(single_word.lower(), pos=wordnet.NOUN) # Start with Noun
+    if not single_word_synsets: # If no noun synsets, try adjectives
+         single_word_synsets = wordnet.synsets(single_word.lower(), pos=wordnet.ADJ)
+
+    if not single_word_synsets:
+        # print(f"Warning: '{single_word}' not found as a noun or adjective in WordNet.")
+        return None # Cannot find synsets for the main word
+
+    best_topic = None
+    highest_similarity = -1.0 # Initialize with a value lower than any possible similarity
+
+    # Use a threshold to avoid returning a topic for very low similarity scores
+    SIGNIFICANCE_THRESHOLD = 0.2 # Example threshold, can be adjusted
+
+    for topic_word in topic_list:
+        # Consider both noun and adjective senses for topic words too
+        topic_word_synsets = wordnet.synsets(topic_word.lower(), pos=wordnet.NOUN) # Start with Noun
+        if not topic_word_synsets: # If no noun synsets, try adjectives
+             topic_word_synsets = wordnet.synsets(topic_word.lower(), pos=wordnet.ADJ)
+
+
+        if not topic_word_synsets:
+            # print(f"Warning: '{topic_word}' not found as a noun or adjective in WordNet. Skipping.")
+            continue # Cannot compare if topic word has no synsets
+
+        current_max_similarity = 0.0
+
+        # Calculate the maximum Wu-Palmer similarity between any synset pair
+        for sw_syn in single_word_synsets:
+            for tw_syn in topic_word_synsets:
+                # Wu-Palmer similarity works best with nouns, but let's try other types if included
+                # wup_similarity primarily defined for nouns/verbs. Let's check part of speech.
+                # If synsets are of different POS, similarity might return None.
+                if sw_syn.pos() == tw_syn.pos() and (sw_syn.pos() == wordnet.NOUN or sw_syn.pos() == wordnet.VERB):
+                     similarity = sw_syn.wup_similarity(tw_syn)
+                     if similarity is not None:
+                          current_max_similarity = max(current_max_similarity, similarity)
+                # For Adj/Adv, other metrics like path_similarity or lch_similarity might be used,
+                # but wup_similarity is generally robust and common for Nouns/Verbs which
+                # are typical topic words. Sticking primarily to WUP for simplicity and consistency.
+                # We've already filtered to Noun/Adj senses initially. WUP is usually only between N/N or V/V.
+                elif sw_syn.pos() == wordnet.NOUN and tw_syn.pos() == wordnet.NOUN:
+                     similarity = sw_syn.wup_similarity(tw_syn)
+                     if similarity is not None:
+                          current_max_similarity = max(current_max_similarity, similarity)
+
+
+        # Update best topic if current word is more similar
+        if current_max_similarity > highest_similarity:
+             highest_similarity = current_max_similarity
+             best_topic = topic_word
+
+
+    # Return the best topic only if the highest similarity is above a threshold
+    if highest_similarity > SIGNIFICANCE_THRESHOLD:
+        return best_topic
+    else:
+        return None # No topic found with significant similarity
 
 # --- Flask Application ---
 app = Flask(__name__)
@@ -223,6 +303,49 @@ def find_topic():
     suggested_words = find_top_topic_words(topic_words, top_n=3)
 
     return jsonify({"topic_words": suggested_words})
+
+
+# --- New Route: Categorize a Single Word ---
+@app.route('/categorize-word', methods=['POST'])
+def categorize_word():
+    """
+    POST route to find the best fitting topic for a single word
+    from a list of provided topics using WordNet similarity.
+    Expects a JSON payload like: {"word": "apple", "topics": ["fruit", "vehicle", "sport"]}
+    Returns a JSON response like: {"best_topic": "fruit"} or {"best_topic": null}
+    """
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 415
+
+    data = request.get_json()
+
+    # Validate input structure and types
+    if 'word' not in data or not isinstance(data['word'], str):
+         return jsonify({"error": "JSON payload must contain a 'word' key with a single string"}), 400
+
+    if 'topics' not in data or not isinstance(data['topics'], list) or not all(isinstance(topic, str) for topic in data['topics']):
+         return jsonify({"error": "JSON payload must contain a 'topics' key with a list of strings"}), 400
+
+    single_word = data['word'].strip()
+    topic_list = [topic.strip() for topic in data['topics'] if topic.strip()] # Clean and filter empty topics
+
+    # Basic check for empty word or topic list after cleaning
+    if not single_word or not topic_list:
+         # Depending on requirements, could return 400, but 200 with null indicates no match found for empty input
+         return jsonify({"best_topic": None, "message": "Input word or valid topic list is empty"}), 200
+
+    # Call the new function
+    best_topic = find_best_fitting_topic(single_word, topic_list)
+
+    # Return the result
+    if best_topic:
+        # Find the original casing from the input list if available
+        original_topic_casing = next((topic for topic in data['topics'] if topic.lower() == best_topic.lower()), best_topic)
+        return jsonify({"best_topic": original_topic_casing}), 200
+    else:
+        # If no significant topic was found
+        return jsonify({"best_topic": None, "message": "Could not find a significantly similar topic."}), 200
+
 
 if __name__ == '__main__':
     # Run the Flask app
