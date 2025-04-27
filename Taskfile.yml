@@ -7,6 +7,7 @@ tasks:
   up_dev:
     aliases:
       - up
+      - start
     cmds:
       - docker compose up -d
 
@@ -15,6 +16,8 @@ tasks:
       - docker compose up -d --build
 
   down:
+    aliases:
+      - stop
     cmds:
       - docker compose down
 
