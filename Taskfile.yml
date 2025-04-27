@@ -1,0 +1,30 @@
+# https://taskfile.dev
+
+version: '3'
+
+tasks:
+
+  up_dev:
+    aliases:
+      - up
+    cmds:
+      - docker compose up -d
+
+  up_build:
+    cmds:
+      - docker compose up -d --build
+
+  down:
+    cmds:
+      - docker compose down
+
+  up_prod:
+    cmds:
+      - docker compose -f docker-compose-prod.yml up -d
+
+  up_build_prod:
+    cmds:
+      - docker compose -f docker-compose-prod.yml up -d --build
+
+
+

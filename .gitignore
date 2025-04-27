@@ -1,0 +1,5 @@
+.idea
+.Ds_Store
+.python-version
+__pycache__/*
+venv/*

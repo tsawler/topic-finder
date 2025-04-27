@@ -1,0 +1,32 @@
+# Define the services (containers) for your application
+services:
+  topic_finder:
+    # Build the Docker image using the Dockerfile in the current directory
+    build: .
+    # Map port 5000 on the host to port 5000 in the container
+    ports:
+      - "4001:5000"
+    # Define environment variables within the container
+    environment:
+      # Set the Flask environment mode.
+      # This variable is checked by the command below to determine how to run the app.
+      # Defaulting to 'development' for ease of local testing.
+      # Change this to 'production' when deploying.
+      FLASK_ENV: development
+    # Define the command to run when the container starts
+    # This command uses a shell script to check the FLASK_ENV environment variable
+    command: >
+      sh -c "if [ \"$$FLASK_ENV\" = \"production\" ]; then
+        # If in production mode, run the app using Gunicorn
+        # --bind 0.0.0.0:5000 makes Gunicorn listen on all network interfaces on port 5000
+        # app:app tells Gunicorn to find the Flask app instance named 'app' in app.py
+        gunicorn --bind 0.0.0.0:5000 app:app;
+      else
+        # If in development mode, run the app using Flask's built-in development server
+        # --host=0.0.0.0 makes the Flask server accessible externally (useful in Docker)
+        flask run --host=0.0.0.0;
+      fi"
+    # Optional: Mount the current directory into the container for easier development
+    # This allows code changes on the host to be reflected in the container without rebuilding
+    # volumes:
+      # - .:/app
